@@ -1,21 +1,24 @@
-import 'dart:ui';
-
 import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:flutter/material.dart';
+import 'package:music_player/utils.dart';
+import 'package:palette_generator/palette_generator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sleek_circular_slider/sleek_circular_slider.dart';
 
 class PlayerPage extends StatefulWidget {
-  const PlayerPage({Key? key}) : super(key: key);
+  PlayerPage({required this.index, Key? key}) : super(key: key);
+  int index;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  bool isPlaying = false;
+  bool isPlaying = true;
   Duration duration = Duration.zero;
   Duration position = Duration.zero;
-  Color dominantColor = Colors.transparent;
   final player = AssetsAudioPlayer();
+  bool isLiked = false;
   @override
   void initState() {
     openPlayer();
@@ -32,24 +35,16 @@ class _PlayerPageState extends State<PlayerPage> {
     super.initState();
   }
 
-  List<Audio> songs = [
-    Audio('assets/nf_Let_You_Down.mp3',
-        metas: Metas(
-            title: 'Let you down',
-            artist: 'NF',
-            image: const MetasImage.asset(
-                'assets/1b7f41e39f3d6ac58798a500eb4a0e2901f4502dv2_hq.jpeg'))),
-  ];
   void openPlayer() async {
-    await player.open(Playlist(audios: songs),
-        autoStart: false, showNotification: false, loopMode: LoopMode.playlist);
+    await player.open(Playlist(audios: songs, startIndex: widget.index),
+        autoStart: true, showNotification: false, loopMode: LoopMode.playlist);
   }
 
-  String durationFormat(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$twoDigitMinutes:$twoDigitSeconds';
+  Future<PaletteGenerator> getDominantColor() async {
+    var paletteGenerator = await PaletteGenerator.fromImageProvider(
+      AssetImage(player.getCurrentAudioImage?.path ?? ''),
+    );
+    return paletteGenerator;
   }
 
   @override
@@ -69,93 +64,152 @@ class _PlayerPageState extends State<PlayerPage> {
               )),
         ),
       ),
+      extendBodyBehindAppBar: true,
       body: Stack(
-        alignment: Alignment.topCenter,
+        alignment: Alignment.center,
         children: [
-          // ImageFiltered(
-          //   imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-          //   child: Image.asset(
-          //     player.getCurrentAudioImage?.path ?? '',
-          //     width: double.infinity,
-          //   ),
-          // ),
-          Container(
-            margin: const EdgeInsets.only(bottom: 400),
-            decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black])),
+          FutureBuilder<PaletteGenerator>(
+            future: getDominantColor(),
+            builder: (context, snapshot) {
+              return Container(
+                color: snapshot.data?.mutedColor?.color,
+              );
+            },
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                decoration: const BoxDecoration(boxShadow: [
-                  BoxShadow(blurRadius: 100, color: Colors.black45)
-                ]),
-                child: Image.asset(
-                  player.getCurrentAudioImage?.path ?? '',
-                  height: 300,
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(.7)
+                  ])),
+            ),
+          ),
+          Positioned(
+            height: MediaQuery.of(context).size.height / 1.5,
+            child: Column(
+              children: [
+                Text(
+                  player.current.valueOrNull?.audio.audio.metas.title ?? '',
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(height: 30),
-              Text(
-                player.current.valueOrNull?.audio.audio.metas.title ?? '',
-                style: const TextStyle(fontSize: 24),
-              ),
-              const SizedBox(
-                height: 30,
-              ),
-              Slider(
-                activeColor: Colors.white,
-                inactiveColor: Colors.grey,
-                min: 0,
-                max: duration.inSeconds.toDouble(),
-                value: position.inSeconds.toDouble(),
-                onChanged: (value) async {
-                  await player.seek(Duration(seconds: value.toInt()));
-                },
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                const SizedBox(
+                  height: 5,
+                ),
+                Text(
+                  player.current.valueOrNull?.audio.audio.metas.artist ?? '',
+                  style: const TextStyle(fontSize: 20, color: Colors.white70),
+                ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height / 20,
+                ),
+                IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Text(
+                        durationFormat(position),
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      const VerticalDivider(
+                        color: Colors.white54,
+                        thickness: 2,
+                        width: 25,
+                        indent: 2,
+                        endIndent: 2,
+                      ),
+                      Text(
+                        durationFormat(duration - position),
+                        style: const TextStyle(color: kPrimaryColor),
+                      )
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Center(
+              child: SleekCircularSlider(
+            min: 0,
+            max: duration.inSeconds.toDouble(),
+            initialValue: position.inSeconds.toDouble(),
+            onChange: (value) async {
+              await player.seek(Duration(seconds: value.toInt()));
+            },
+            innerWidget: (percentage) {
+              return Padding(
+                padding: const EdgeInsets.all(25.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.grey,
+                  backgroundImage:
+                      AssetImage(player.getCurrentAudioImage?.path ?? ''),
+                ),
+              );
+            },
+            appearance: CircularSliderAppearance(
+                size: 330,
+                angleRange: 300,
+                startAngle: 300,
+                customColors: CustomSliderColors(
+                    progressBarColor: kPrimaryColor,
+                    dotColor: kPrimaryColor,
+                    trackColor: Colors.grey.withOpacity(.4)),
+                customWidths: CustomSliderWidths(
+                    trackWidth: 6, handlerSize: 10, progressBarWidth: 6)),
+          )),
+          Positioned(
+            top: MediaQuery.of(context).size.height / 1.3,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text(durationFormat(position)),
-                  Text(durationFormat(duration - position))
+                  IconButton(
+                      onPressed: () async {
+                        await player.previous();
+                      },
+                      icon: const Icon(
+                        Icons.skip_previous_rounded,
+                        size: 50,
+                        color: Colors.white,
+                      )),
+                  IconButton(
+                    onPressed: () async {
+                      await player.playOrPause();
+                      setState(() {
+                        isPlaying = !isPlaying;
+                      });
+                    },
+                    padding: EdgeInsets.zero,
+                    icon: isPlaying
+                        ? const Icon(
+                            Icons.pause_circle,
+                            size: 70,
+                            color: Colors.white,
+                          )
+                        : const Icon(
+                            Icons.play_circle,
+                            size: 70,
+                            color: Colors.white,
+                          ),
+                  ),
+                  IconButton(
+                      onPressed: () async {
+                        await player.next();
+                      },
+                      icon: const Icon(
+                        Icons.skip_next_rounded,
+                        size: 50,
+                        color: Colors.white,
+                      )),
                 ],
               ),
-              Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                        onPressed: () async {
-                          await player.previous();
-                        },
-                        icon: const Icon(Icons.skip_previous)),
-                    IconButton(
-                      onPressed: () async {
-                        await player.playOrPause();
-                        setState(() {
-                          isPlaying = !isPlaying;
-                        });
-                      },
-                      icon: isPlaying
-                          ? const Icon(Icons.pause)
-                          : const Icon(Icons.play_arrow),
-                    ),
-                    IconButton(
-                        onPressed: () async {
-                          await player.next();
-                          setState(() {
-                            isPlaying = true;
-                          });
-                        },
-                        icon: const Icon(Icons.skip_next)),
-                  ],
-                ),
-              )
-            ],
+            ),
           ),
         ],
       ),

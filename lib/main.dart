@@ -15,12 +15,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Music Player',
       theme: ThemeData(
-          useMaterial3: true,
-          textTheme:
-              const TextTheme(bodyMedium: TextStyle(color: Colors.white)),
-          iconTheme: const IconThemeData(color: Colors.white)),
+        useMaterial3: true,
+        textTheme: const TextTheme(bodyMedium: TextStyle(color: Colors.white)),
+      ),
       debugShowCheckedModeBanner: false,
-      home: const PlayerPage(),
+      home: const MusicList(),
     );
   }
 }
