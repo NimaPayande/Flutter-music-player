@@ -1,8 +1,5 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
-import 'package:music_player/music_list.dart';
-import 'package:music_player/player_page.dart';
+import 'package:music_player/playlist_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,7 +16,7 @@ class MyApp extends StatelessWidget {
         textTheme: const TextTheme(bodyMedium: TextStyle(color: Colors.white)),
       ),
       debugShowCheckedModeBanner: false,
-      home: const MusicList(),
+      home: const PlaylistPage(),
     );
   }
 }

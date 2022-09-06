@@ -2,49 +2,46 @@ import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:flutter/material.dart';
 import 'package:music_player/utils.dart';
 import 'package:palette_generator/palette_generator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sleek_circular_slider/sleek_circular_slider.dart';
 
 class PlayerPage extends StatefulWidget {
-  PlayerPage({required this.index, Key? key}) : super(key: key);
-  int index;
+  const PlayerPage({required this.player, Key? key}) : super(key: key);
+  final AssetsAudioPlayer player;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  bool isPlaying = true;
   Duration duration = Duration.zero;
   Duration position = Duration.zero;
-  final player = AssetsAudioPlayer();
-  bool isLiked = false;
+  bool isPlaying = true;
   @override
   void initState() {
-    openPlayer();
-    player.onReadyToPlay.listen((event) {
-      setState(() {
-        duration = event?.duration ?? Duration.zero;
-      });
+    widget.player.isPlaying.listen((event) {
+      if (mounted) {
+        setState(() {
+          isPlaying = event;
+        });
+      }
     });
-    player.currentPosition.listen((newPosition) {
-      setState(() {
-        position = newPosition;
-      });
+
+    widget.player.onReadyToPlay.listen((newDuration) {
+      if (mounted) {
+        setState(() {
+          duration = newDuration?.duration ?? Duration.zero;
+        });
+      }
+    });
+
+    widget.player.currentPosition.listen((newPosition) {
+      if (mounted) {
+        setState(() {
+          position = newPosition;
+        });
+      }
     });
     super.initState();
-  }
-
-  void openPlayer() async {
-    await player.open(Playlist(audios: songs, startIndex: widget.index),
-        autoStart: true, showNotification: false, loopMode: LoopMode.playlist);
-  }
-
-  Future<PaletteGenerator> getDominantColor() async {
-    var paletteGenerator = await PaletteGenerator.fromImageProvider(
-      AssetImage(player.getCurrentAudioImage?.path ?? ''),
-    );
-    return paletteGenerator;
   }
 
   @override
@@ -69,7 +66,7 @@ class _PlayerPageState extends State<PlayerPage> {
         alignment: Alignment.center,
         children: [
           FutureBuilder<PaletteGenerator>(
-            future: getDominantColor(),
+            future: getImageColors(widget.player),
             builder: (context, snapshot) {
               return Container(
                 color: snapshot.data?.mutedColor?.color,
@@ -94,7 +91,7 @@ class _PlayerPageState extends State<PlayerPage> {
             child: Column(
               children: [
                 Text(
-                  player.current.valueOrNull?.audio.audio.metas.title ?? '',
+                  widget.player.getCurrentAudioTitle,
                   style: const TextStyle(
                       fontSize: 24, fontWeight: FontWeight.bold),
                 ),
@@ -102,7 +99,7 @@ class _PlayerPageState extends State<PlayerPage> {
                   height: 5,
                 ),
                 Text(
-                  player.current.valueOrNull?.audio.audio.metas.artist ?? '',
+                  widget.player.getCurrentAudioArtist,
                   style: const TextStyle(fontSize: 20, color: Colors.white70),
                 ),
                 SizedBox(
@@ -138,15 +135,15 @@ class _PlayerPageState extends State<PlayerPage> {
             max: duration.inSeconds.toDouble(),
             initialValue: position.inSeconds.toDouble(),
             onChange: (value) async {
-              await player.seek(Duration(seconds: value.toInt()));
+              await widget.player.seek(Duration(seconds: value.toInt()));
             },
             innerWidget: (percentage) {
               return Padding(
                 padding: const EdgeInsets.all(25.0),
                 child: CircleAvatar(
                   backgroundColor: Colors.grey,
-                  backgroundImage:
-                      AssetImage(player.getCurrentAudioImage?.path ?? ''),
+                  backgroundImage: AssetImage(
+                      widget.player.getCurrentAudioImage?.path ?? ''),
                 ),
               );
             },
@@ -171,7 +168,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 children: [
                   IconButton(
                       onPressed: () async {
-                        await player.previous();
+                        await widget.player.previous();
                       },
                       icon: const Icon(
                         Icons.skip_previous_rounded,
@@ -180,10 +177,7 @@ class _PlayerPageState extends State<PlayerPage> {
                       )),
                   IconButton(
                     onPressed: () async {
-                      await player.playOrPause();
-                      setState(() {
-                        isPlaying = !isPlaying;
-                      });
+                      await widget.player.playOrPause();
                     },
                     padding: EdgeInsets.zero,
                     icon: isPlaying
@@ -200,7 +194,7 @@ class _PlayerPageState extends State<PlayerPage> {
                   ),
                   IconButton(
                       onPressed: () async {
-                        await player.next();
+                        await widget.player.next();
                       },
                       icon: const Icon(
                         Icons.skip_next_rounded,
@@ -214,11 +208,5 @@ class _PlayerPageState extends State<PlayerPage> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    player.dispose();
-    super.dispose();
   }
 }
